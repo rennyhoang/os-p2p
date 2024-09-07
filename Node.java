@@ -7,20 +7,20 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 
 public class Node {
-    String address;
-    Integer portNumber;
+    String bootstrapAddress;
+    Integer bootstrapPortNumber;
     ArrayList<SimpleEntry<String, Integer>> neighborList = new ArrayList<>();
 
-    public Node(String address, Integer portNumber) {
-        this.address = address;
-        this.portNumber = portNumber;
+    public Node(String bootstrapAddress, Integer bootstrapPortNumber) {
+        this.bootstrapAddress = bootstrapAddress;
+        this.bootstrapPortNumber = bootstrapPortNumber;
     }
 
     public void startNode() {
         // create a client socket
         try {
             // connect to bootstrap and get neighbor
-            Socket bootstrapSocket = new Socket(address, portNumber);
+            Socket bootstrapSocket = new Socket(bootstrapAddress, bootstrapPortNumber);
             BufferedReader input = new BufferedReader(new InputStreamReader(bootstrapSocket.getInputStream()));
             String neighborAddress = input.readLine();
             Integer neighborPort = Integer.parseInt(input.readLine());
@@ -29,17 +29,20 @@ public class Node {
             // add neighbor to neighborList
             neighborList.add(new SimpleEntry<>(neighborAddress, neighborPort));
 
-            // tell neighbor to output list of neighbors
+            // tell neighbor to output list of neighbors, unless it's bootstrap
             System.out.println(neighborList.toString());
-            Socket neighborSocket = new Socket(neighborAddress, neighborPort);
-            neighborSocket.close();
+            if (!neighborAddress.equals(bootstrapAddress) && !neighborPort.equals(bootstrapPortNumber)) {
+                Socket neighborSocket = new Socket(neighborAddress, neighborPort);
+                neighborSocket.close();
+            }
 
             // become a server
             ServerSocket serverSocket = new ServerSocket(8090);
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                // output list of neighbors
+                this.neighborList.add(new SimpleEntry<>(clientSocket.getInetAddress().toString(), clientSocket.getPort()));
                 System.out.println(neighborList.toString());
+                clientSocket.close();
             }
         } catch (IOException e) {
             e.printStackTrace();
