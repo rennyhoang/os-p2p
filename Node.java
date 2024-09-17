@@ -32,7 +32,6 @@ public class Node {
             // start up the server
             ServerSocket serverSocket = new ServerSocket(0);
             String serverHostName = InetAddress.getLocalHost().getHostName();
-            System.out.println(serverHostName);
             Integer serverPortNumber = serverSocket.getLocalPort();
 
             // open up file containing nodes
@@ -100,12 +99,17 @@ public class Node {
                 public void run() {
                     try {
                         while (true) {
+                            System.out.println("NEW CLIENT HANDLER CREATED");
                             Socket clientSocket = serverSocket.accept();
                             ClientHandler clientHandler = new ClientHandler(clientSocket);
-                            new Thread(clientHandler).start();
+                            Thread clientThread = new Thread(clientHandler);
+                            clientThread.start();
+                            clientThread.join();
                         }
                     } catch (IOException e) {
                         e.printStackTrace();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
                     }
                 }
             });
@@ -145,15 +149,37 @@ public class Node {
         }
 
         public void run() {
-            if (neighborList.contains(new SimpleEntry<>(clientSocket.getInetAddress().getHostName(), clientSocket.getPort()))) {
+            boolean isNeighbor = false;
+            String neighborHostName = clientSocket.getInetAddress().getHostName();
+            Integer neighborPort = null;
+
+            for (SimpleEntry<String, Integer> neighbor : neighborList) {
+                if (clientSocket.getInetAddress().getHostName().equals(neighbor.getKey())) {
+                    isNeighbor = true;
+                    neighborPort = neighbor.getValue();
+                }
+            }
+            if (isNeighbor) {
                 System.out.println("Already a neighbor!");
                 // check for file
                 // if we have the file, respond with address and port
+                // if not, create a request handler
+                // respond with no for now
+                try {
+                    PrintWriter output = new PrintWriter(clientSocket.getOutputStream(), true);
+                    BufferedReader input = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                    String request = input.readLine();
+                    output.println("no");
+                    output.close();
+                    clientSocket.close();
+                    input.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 // otherwise, decrement the hop count
-                // if the hop count > 0, send it to our neighbors
+                // if the hop count > 0, send it to our neighbors (but not the neighbor that sent to us)
             } else {
                 String clientAddress = clientSocket.getInetAddress().getHostName();
-                System.out.println(clientAddress);
                 int clientServerPort = 0;
                 try {
                     BufferedReader input = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -240,11 +266,11 @@ public class Node {
             public void run() {
                 // write to the socket
                 try {
-                    PrintWriter output = new PrintWriter(this.receiverSocket.getOutputStream());
-                    BufferedReader input =  new BufferedReader(new InputStreamReader(receiverSocket.getInputStream()));
-                    System.out.println(this.request);
+                    PrintWriter output = new PrintWriter(this.receiverSocket.getOutputStream(), true);
+                    BufferedReader input =  new BufferedReader(new InputStreamReader(this.receiverSocket.getInputStream()));
                     output.println(this.request);
                     this.response = input.readLine();
+                    System.out.println(this.response);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
